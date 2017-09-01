@@ -30,21 +30,22 @@ package org.semanticweb.owl.explanation.telemetry;
  */
 public class NullTelemetryReceiver implements TelemetryReceiver {
 
-    public void beginTransmission(TelemetryInfo transmitter) {
-    }
+    @Override
+    public void beginTransmission(TelemetryInfo transmitter) {}
 
-    public void recordMeasurement(TelemetryInfo info, String propertyName, String value) {
-    }
+    @Override
+    public void recordMeasurement(TelemetryInfo info, String propertyName, String value) {}
 
-    public void recordObject(TelemetryInfo info, String namePrefix, String nameSuffix, Object object) {
-    }
+    @Override
+    public void recordObject(TelemetryInfo info, String namePrefix, String nameSuffix,
+        Object object) {}
 
-    public void recordTiming(TelemetryInfo info, String name, TelemetryTimer telemetryTimer) {
-    }
+    @Override
+    public void recordTiming(TelemetryInfo info, String name, TelemetryTimer telemetryTimer) {}
 
-    public void endTransmission(TelemetryInfo transmitter) {
-    }
+    @Override
+    public void endTransmission(TelemetryInfo transmitter) {}
 
-    public void recordException(TelemetryInfo info, Throwable exception) {
-    }
+    @Override
+    public void recordException(TelemetryInfo info, Throwable exception) {}
 }

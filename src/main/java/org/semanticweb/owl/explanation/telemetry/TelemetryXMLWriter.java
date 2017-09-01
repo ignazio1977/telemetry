@@ -1,7 +1,8 @@
 package org.semanticweb.owl.explanation.telemetry;
 
-import java.io.IOException;
-import java.io.Writer;
+import static org.semanticweb.owlapi.util.OWLAPIPreconditions.verifyNotNull;
+
+import java.io.PrintWriter;
 import java.net.URI;
 import java.util.Collections;
 import java.util.Comparator;
@@ -12,14 +13,14 @@ import java.util.Map;
 import java.util.Stack;
 import java.util.StringTokenizer;
 
+import javax.annotation.Nonnull;
+
 import org.semanticweb.owlapi.io.XMLUtils;
 import org.semanticweb.owlapi.model.IRI;
 import org.semanticweb.owlapi.model.OntologyConfigurator;
 import org.semanticweb.owlapi.rdf.rdfxml.renderer.IllegalElementNameException;
 import org.semanticweb.owlapi.rdf.rdfxml.renderer.XMLWriter;
 import org.semanticweb.owlapi.rdf.rdfxml.renderer.XMLWriterNamespaceManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.Lists;
 
@@ -33,7 +34,7 @@ public class TelemetryXMLWriter implements XMLWriter {
 
     private Stack<XMLElement> elementStack;
 
-    protected Writer writer;
+    protected PrintWriter writer;
 
     private String encoding = "";
 
@@ -41,7 +42,7 @@ public class TelemetryXMLWriter implements XMLWriter {
 
     private URI xmlBaseURI;
 
-    private XMLWriterNamespaceManager xmlWriterNamespaceManager;
+    protected XMLWriterNamespaceManager xmlWriterNamespaceManager;
 
     private Map<String, String> entities;
 
@@ -49,13 +50,11 @@ public class TelemetryXMLWriter implements XMLWriter {
 
     private boolean preambleWritten;
 
-    private OntologyConfigurator configurator;
+    protected OntologyConfigurator configurator;
 
     private static final String PERCENT_ENTITY = "&#37;";
 
-    private static final Logger logger = LoggerFactory.getLogger(TelemetryXMLWriter.class);
-
-    public TelemetryXMLWriter(Writer writer, XMLWriterNamespaceManager nsm, String xmlBase,
+    public TelemetryXMLWriter(PrintWriter writer, XMLWriterNamespaceManager nsm, String xmlBase,
         OntologyConfigurator configurator) {
         this.writer = writer;
         xmlWriterNamespaceManager = nsm;
@@ -65,31 +64,33 @@ public class TelemetryXMLWriter implements XMLWriter {
         // no need to set it to UTF-8: it's supposed to be the default encoding for XML.
         // Must be set correctly for the Writer anyway, or bugs will ensue.
         // this.encoding = "UTF-8";
-        elementStack = new Stack<XMLElement>();
+        elementStack = new Stack<>();
         setupEntities();
     }
 
 
     private void setupEntities() {
         List<String> namespaces = Lists.newArrayList(xmlWriterNamespaceManager.getNamespaces());
-        Collections.sort(namespaces, new StringLengthOnlyComparator());
-        entities = new LinkedHashMap<String, String>();
+        Collections.sort(namespaces, Comparator.comparing(String::length));
+        entities = new LinkedHashMap<>();
         for (String curNamespace : namespaces) {
-            String curPrefix = "";
-            if (xmlWriterNamespaceManager.getDefaultNamespace().equals(curNamespace)) {
-                curPrefix = xmlWriterNamespaceManager.getDefaultPrefix();
-            } else {
-                curPrefix = xmlWriterNamespaceManager.getPrefixForNamespace(curNamespace);
-
-            }
+            String curPrefix = selectCurrentPrefix(curNamespace);
             if (curPrefix.length() > 0) {
                 entities.put(curNamespace, "&" + curPrefix + ";");
             }
         }
     }
 
+    @Nonnull
+    protected String selectCurrentPrefix(String curNamespace) {
+        if (xmlWriterNamespaceManager.getDefaultNamespace().equals(curNamespace)) {
+            return xmlWriterNamespaceManager.getDefaultPrefix();
+        }
+        return verifyNotNull(xmlWriterNamespaceManager.getPrefixForNamespace(curNamespace));
+    }
 
-    private String swapForEntity(String value) {
+
+    protected final String swapForEntity(String value) {
         for (String curEntity : entities.keySet()) {
             String entityVal = entities.get(curEntity);
             if (value.length() > curEntity.length()) {
@@ -140,12 +141,7 @@ public class TelemetryXMLWriter implements XMLWriter {
         // Pop the element off the stack and write it out
         if (!elementStack.isEmpty()) {
             XMLElement element = elementStack.pop();
-            try {
-                element.writeElementEnd();
-            } catch (IOException e) {
-                logger.error("An error occurred whilst writing the closing element: {}",
-                    e.getMessage(), e);
-            }
+            element.writeElementEnd();
         }
     }
 
@@ -176,36 +172,32 @@ public class TelemetryXMLWriter implements XMLWriter {
 
     @Override
     public void startDocument(IRI rootElement) {
-        try {
-            String encodingString = "";
-            if (encoding.length() > 0) {
-                encodingString = " encoding=\"" + encoding + "\"";
+        String encodingString = "";
+        if (encoding.length() > 0) {
+            encodingString = " encoding=\"" + encoding + "\"";
+        }
+        writer.write("<?xml version=\"1.0\"" + encodingString + "?>\n");
+        if (configurator.shouldUseNamespaceEntities()) {
+            writeEntities(rootElement);
+        }
+        preambleWritten = true;
+        while (!elementStack.isEmpty()) {
+            elementStack.pop().writeElementStart(true);
+        }
+        writeStartElement(rootElement);
+        setWrapAttributes(true);
+        String defaultNamespace = xmlWriterNamespaceManager.getDefaultNamespace();
+        if (defaultNamespace.length() > 0) {
+            writeAttribute("xmlns", defaultNamespace);
+        }
+        if (xmlBase.length() != 0) {
+            writeAttribute("xml:base", xmlBase);
+        }
+        for (String curPrefix : xmlWriterNamespaceManager.getPrefixes()) {
+            if (curPrefix.length() > 0) {
+                writeAttribute("xmlns:" + curPrefix,
+                    verifyNotNull(xmlWriterNamespaceManager.getNamespaceForPrefix(curPrefix)));
             }
-            writer.write("<?xml version=\"1.0\"" + encodingString + "?>\n");
-            if (configurator.shouldUseNamespaceEntities()) {
-                writeEntities(rootElement);
-            }
-            preambleWritten = true;
-            while (!elementStack.isEmpty()) {
-                elementStack.pop().writeElementStart(true);
-            }
-            writeStartElement(rootElement);
-            setWrapAttributes(true);
-            String defaultNamespace = xmlWriterNamespaceManager.getDefaultNamespace();
-            if (defaultNamespace.length() > 0) {
-                writeAttribute("xmlns", defaultNamespace);
-            }
-            if (xmlBase.length() != 0) {
-                writeAttribute("xml:base", xmlBase);
-            }
-            for (String curPrefix : xmlWriterNamespaceManager.getPrefixes()) {
-                if (curPrefix.length() > 0) {
-                    writeAttribute("xmlns:" + curPrefix,
-                        xmlWriterNamespaceManager.getNamespaceForPrefix(curPrefix));
-                }
-            }
-        } catch (IOException e) {
-
         }
     }
 
@@ -215,12 +207,7 @@ public class TelemetryXMLWriter implements XMLWriter {
         if (!elementStack.isEmpty()) {
             XMLElement topElement = elementStack.peek();
             if (topElement != null) {
-                try {
-                    topElement.writeElementStart(false);
-                } catch (IOException e) {
-                    logger.error("An error occurred whilst writing the element: {}", e.getMessage(),
-                        e);
-                }
+                topElement.writeElementStart(false);
             }
         }
         elementStack.push(element);
@@ -238,27 +225,18 @@ public class TelemetryXMLWriter implements XMLWriter {
         if (!elementStack.isEmpty()) {
             XMLElement topElement = elementStack.peek();
             if (topElement != null) {
-                try {
-                    topElement.writeElementStart(false);
-                } catch (IOException e) {
-                    logger.error("An error occurred whilst writing an element: {}", e.getMessage(),
-                        e);
-                }
+                topElement.writeElementStart(false);
             }
         }
         if (preambleWritten) {
-            try {
-                element.writeElementStart(true);
-            } catch (IOException e) {
-                logger.error("An error occurred whilst writing an element: {}", e.getMessage(), e);
-            }
+            element.writeElementStart(true);
         } else {
             elementStack.push(element);
         }
     }
 
 
-    private void writeEntities(IRI rootName) throws IOException {
+    private void writeEntities(IRI rootName) {
         writer.write("\n\n<!DOCTYPE " + xmlWriterNamespaceManager.getQName(rootName) + " [\n");
         for (String entityVal : entities.keySet()) {
             String entity = entities.get(entityVal);
@@ -280,22 +258,8 @@ public class TelemetryXMLWriter implements XMLWriter {
         while (!elementStack.isEmpty()) {
             writeEndElement();
         }
-        try {
-            writer.flush();
-        } catch (IOException e) {
-            logger.error("An error occurred whilst flushing the stream: {}", e.getMessage(), e);
-        }
+        writer.flush();
     }
-
-
-    private static final class StringLengthOnlyComparator implements Comparator<String> {
-        @Override
-        public int compare(String o1, String o2) {
-            // Shortest string first
-            return o1.length() - o2.length();
-        }
-    }
-
 
     public class XMLElement {
 
@@ -324,7 +288,7 @@ public class TelemetryXMLWriter implements XMLWriter {
 
         public XMLElement(IRI name, int indentation) {
             this.name = name;
-            attributes = new LinkedHashMap<String, String>();
+            attributes = new LinkedHashMap<>();
             this.indentation = indentation;
             textContent = null;
             startWritten = false;
@@ -354,7 +318,7 @@ public class TelemetryXMLWriter implements XMLWriter {
         }
 
 
-        public void writeElementStart(boolean close) throws IOException {
+        public void writeElementStart(boolean close) {
             if (!startWritten) {
                 startWritten = true;
                 insertIndentation();
@@ -407,7 +371,7 @@ public class TelemetryXMLWriter implements XMLWriter {
         }
 
 
-        public void writeElementEnd() throws IOException {
+        public void writeElementEnd() {
             if (name != null) {
                 if (!startWritten) {
                     writeElementStart(true);
@@ -424,7 +388,7 @@ public class TelemetryXMLWriter implements XMLWriter {
         }
 
 
-        private void writeAttribute(String attr, String val) throws IOException {
+        private void writeAttribute(String attr, String val) {
             writer.write(attr);
             writer.write('=');
             writer.write('"');
@@ -437,7 +401,7 @@ public class TelemetryXMLWriter implements XMLWriter {
         }
 
 
-        private void writeAttributes() throws IOException {
+        private void writeAttributes() {
             for (Iterator<String> it = attributes.keySet().iterator(); it.hasNext();) {
                 String attr = it.next();
                 String val = attributes.get(attr);
@@ -453,7 +417,7 @@ public class TelemetryXMLWriter implements XMLWriter {
         }
 
 
-        private void writeTextContent() throws IOException {
+        private void writeTextContent() {
             if (textContent != null) {
                 if (!cdata) {
                     if (escape) {
@@ -470,7 +434,7 @@ public class TelemetryXMLWriter implements XMLWriter {
         }
 
 
-        private void insertIndentation() throws IOException {
+        private void insertIndentation() {
             if (configurator.shouldIndent()) {
                 for (int i = 0; i < indentation * configurator.getIndentSize(); i++) {
                     writer.write(' ');
@@ -479,7 +443,7 @@ public class TelemetryXMLWriter implements XMLWriter {
         }
 
 
-        private void writeNewLine() throws IOException {
+        private void writeNewLine() {
             writer.write('\n');
         }
     }

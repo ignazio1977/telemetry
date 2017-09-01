@@ -1,17 +1,18 @@
 package org.semanticweb.owl.explanation.telemetry;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-
 /**
- * @author Matthew Horridge, Stanford University, Bio-Medical Informatics Research Group, Date: 04/06/2014
+ * @author Matthew Horridge, Stanford University, Bio-Medical Informatics Research Group, Date:
+ *         04/06/2014
  */
 @RunWith(MockitoJUnitRunner.class)
 public class TelemetryTransmitterTestCase {
@@ -26,7 +27,7 @@ public class TelemetryTransmitterTestCase {
     private TelemetryTransmitter transmitter;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         transmitter = TelemetryTransmitter.getTransmitter();
         transmitter.setTelemetryReceiver(receiver);
     }
@@ -45,7 +46,7 @@ public class TelemetryTransmitterTestCase {
     }
 
     @Test
-     public void shouldCallRecordMeasurement() {
+    public void shouldCallRecordMeasurement() {
         String name = "name";
         String value = "value";
         transmitter.recordMeasurement(info, name, value);

@@ -1,6 +1,5 @@
 package org.semanticweb.owl.explanation.telemetry;
 
-import java.io.*;
 /*
  * Copyright (C) 2010, University of Manchester
  *
@@ -23,6 +22,8 @@ import java.io.*;
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
+import java.io.OutputStream;
+import java.io.PrintWriter;
 
 /**
  * Author: Matthew Horridge<br>
@@ -38,19 +39,22 @@ public class TelemetryObjectWrapper implements TelemetryObject {
 
     public TelemetryObjectWrapper(Object object, String serialisationName) {
         this.object = object;
-        this.preferredName = serialisationName;
+        preferredName = serialisationName;
     }
 
+    @Override
     public String getPreferredSerialisedName() {
         return preferredName;
     }
 
-    public void serialise(OutputStream outputStream) throws IOException {
+    @Override
+    public void serialise(OutputStream outputStream) {
         PrintWriter pw = new PrintWriter(outputStream);
         pw.print(object);
         pw.flush();
     }
 
+    @Override
     public boolean isSerialisedAsXML() {
         return false;
     }

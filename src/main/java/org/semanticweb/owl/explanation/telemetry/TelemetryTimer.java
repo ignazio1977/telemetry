@@ -49,8 +49,8 @@ public class TelemetryTimer {
         getCurrentTime();
 
         long currentTime = getCurrentTime();
-        if(lastStopTime != 0) {
-            stopDuration = stopDuration + (currentTime - lastStopTime);
+        if (lastStopTime != 0) {
+            stopDuration = stopDuration + currentTime - lastStopTime;
         }
         if (startTime == 0) {
             startTime = getCurrentTime();
@@ -58,7 +58,7 @@ public class TelemetryTimer {
         stopped = false;
     }
 
-    private long getCurrentTime() {
+    private static long getCurrentTime() {
         return bean.getCurrentThreadUserTime();
     }
 
@@ -77,11 +77,10 @@ public class TelemetryTimer {
 
     public long getEllapsedTime() {
         long time;
-        if(!stopped) {
-            time = (getCurrentTime() - startTime) - stopDuration;
-        }
-        else {
-            time = (lastStopTime - startTime) - stopDuration;
+        if (!stopped) {
+            time = getCurrentTime() - startTime - stopDuration;
+        } else {
+            time = lastStopTime - startTime - stopDuration;
         }
         return time;
     }
@@ -95,5 +94,5 @@ public class TelemetryTimer {
         return !stopped;
     }
 
-  
+
 }

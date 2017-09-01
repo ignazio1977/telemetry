@@ -3,9 +3,10 @@ package org.semanticweb.owl.explanation.telemetry;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
-import java.io.IOException;
-import java.io.StringWriter;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 
+import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.junit.Before;
 import org.junit.Test;
 import org.semanticweb.owlapi.model.IRI;
@@ -19,30 +20,35 @@ import org.semanticweb.owlapi.rdf.rdfxml.renderer.XMLWriterNamespaceManager;
  */
 public class TelemetryXMLWriteTestCase {
 
-    private StringWriter baseWriter;
+    private PrintWriter baseWriter;
+    private ByteArrayOutputStream out;
     private XMLWriterNamespaceManager nsm;
     private TelemetryXMLWriter writer;
 
     @Before
-    public void setUp() throws Exception {
-        baseWriter = new StringWriter();
+    public void setUp() {
+        out = new ByteArrayOutputStream();
+        baseWriter = new PrintWriter(out);
         nsm = new XMLWriterNamespaceManager("http://base.com/stuff/");
         writer = new TelemetryXMLWriter(baseWriter, nsm, "http://base.com/stuff",
             new OntologyConfigurator());
     }
 
     @Test
-    public void shouldWriteElement() throws IOException {
+    public void shouldWriteElement() {
         writer.writeStartElement(IRI.create("experiment"));
         writer.writeEndElement();
-        assertThat(baseWriter.toString().trim(), is("<experiment/>"));
+        baseWriter.flush();
+        assertThat(out.toString(StandardCharsets.UTF_8).trim(), is("<experiment/>"));
     }
 
     @Test
-    public void shouldWriteAttribute() throws IOException {
+    public void shouldWriteAttribute() {
         writer.writeStartElement(IRI.create("experiment"));
         writer.writeAttribute("name", "ExperimentName");
         writer.writeEndElement();
-        assertThat(baseWriter.toString().trim(), is("<experiment name=\"ExperimentName\"/>"));
+        baseWriter.flush();
+        assertThat(out.toString(StandardCharsets.UTF_8).trim(),
+            is("<experiment name=\"ExperimentName\"/>"));
     }
 }

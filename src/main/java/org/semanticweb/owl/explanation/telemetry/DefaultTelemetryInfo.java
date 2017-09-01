@@ -44,42 +44,46 @@ public class DefaultTelemetryInfo implements TelemetryInfo {
 
     private boolean autoFlush;
 
-    public DefaultTelemetryInfo(String name, boolean autoFlush, TelemetryTimer ... telemetryTimers) {
+    public DefaultTelemetryInfo(String name, boolean autoFlush, TelemetryTimer... telemetryTimers) {
         this.name = name;
         this.autoFlush = autoFlush;
         this.telemetryTimers = Arrays.asList(telemetryTimers);
     }
 
-    public DefaultTelemetryInfo(String name, TelemetryTimer ... telemetryTimers) {
+    public DefaultTelemetryInfo(String name, TelemetryTimer... telemetryTimers) {
         this(name, true, telemetryTimers);
     }
 
+    @Override
     public boolean isAutoFlush() {
         return autoFlush;
     }
 
+    @Override
     public long getID() {
         return id;
     }
 
+    @Override
     public String getName() {
         return name;
     }
 
+    @Override
     public List<TelemetryTimer> getTimers() {
         return telemetryTimers;
     }
 
     @Override
     public boolean equals(Object obj) {
-        if(obj == this) {
+        if (obj == this) {
             return true;
         }
-        if(!(obj instanceof TelemetryInfo)) {
+        if (!(obj instanceof TelemetryInfo)) {
             return false;
         }
         TelemetryInfo other = (TelemetryInfo) obj;
-        return this.id == other.getID() && this.name.equals(other.getName());
+        return id == other.getID() && name.equals(other.getName());
     }
 
     @Override

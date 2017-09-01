@@ -1,19 +1,17 @@
 package org.semanticweb.owl.explanation.telemetry;
 
-import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import java.util.Stack;
 
 import org.semanticweb.owlapi.model.IRI;
 import org.semanticweb.owlapi.model.OWLAxiom;
@@ -30,17 +28,17 @@ import org.semanticweb.owlapi.rdf.rdfxml.renderer.XMLWriterNamespaceManager;
  */
 public class XMLTelemetryReceiver implements TelemetryReceiver {
 
-    private TelemetryXMLWriter xmlWriter;
+    protected TelemetryXMLWriter xmlWriter;
 
-    private Stack<TelemetryInfo> telemetryNodeStack = new Stack<TelemetryInfo>();
+    private Deque<TelemetryInfo> telemetryNodeStack = new LinkedList<>();
 
-    private Stack<Boolean> ignoreNodeStack = new Stack<Boolean>();
+    private Deque<Boolean> ignoreNodeStack = new LinkedList<>();
 
-    private Set<String> ignoredNodeNames = new HashSet<String>();
+    private Set<String> ignoredNodeNames = new HashSet<>();
 
     private int depth = 0;
 
-    private Writer baseWriter;
+    protected PrintWriter baseWriter;
 
     public XMLTelemetryReceiver() {
         this(new OntologyConfigurator());
@@ -69,19 +67,19 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
         this(getWriterForFile(outputFile), configurator);
     }
 
-    private static BufferedWriter getWriterForFile(File outputFile) {
+    private static PrintWriter getWriterForFile(File outputFile) {
         try {
-            return new BufferedWriter(new FileWriter(outputFile), 10 * 1024 * 1024);
+            return new PrintWriter(outputFile);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public XMLTelemetryReceiver(Writer writer) {
+    public XMLTelemetryReceiver(PrintWriter writer) {
         this(writer, new OntologyConfigurator());
     }
 
-    public XMLTelemetryReceiver(Writer writer, OntologyConfigurator configurator) {
+    public XMLTelemetryReceiver(PrintWriter writer, OntologyConfigurator configurator) {
         XMLWriterNamespaceManager nsm = new XMLWriterNamespaceManager("");
         baseWriter = writer;
         xmlWriter = new TelemetryXMLWriter(baseWriter, nsm, "", configurator);
@@ -90,12 +88,8 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
-                try {
-                    xmlWriter.endDocument();
-                    baseWriter.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+                xmlWriter.endDocument();
+                baseWriter.close();
             }
         });
     }
@@ -118,12 +112,12 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
             telemetryNodeStack.push(info);
             boolean ignore = false;
             if (!ignoreNodeStack.isEmpty()) {
-                ignore = ignoreNodeStack.peek();
+                ignore = ignoreNodeStack.peek().booleanValue();
             }
             if (!ignore) {
                 ignore = ignoredNodeNames.contains(info.getName());
             }
-            ignoreNodeStack.push(ignore);
+            ignoreNodeStack.push(Boolean.valueOf(ignore));
             if (!ignore) {
                 xmlWriter.writeStartElement(IRI.create(info.getName()));
             }
@@ -149,7 +143,7 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
     }
 
     private boolean isIgnoredTransmission() {
-        return !ignoreNodeStack.isEmpty() && ignoreNodeStack.peek();
+        return !ignoreNodeStack.isEmpty() && ignoreNodeStack.peek().booleanValue();
     }
 
     @Override
@@ -209,12 +203,13 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
                     }
                 } else if (object instanceof OWLAxiom) {
                     OWLAxiom ax = (OWLAxiom) object;
-                    OutputStreamWriter osw = new OutputStreamWriter(bos);
-                    PrintWriter printWriter = new PrintWriter(osw);
-                    OWLXMLWriter writer = new OWLXMLWriter(printWriter, null);
-                    OWLXMLObjectRenderer renderer = new OWLXMLObjectRenderer(writer);
-                    ax.accept(renderer);
-                    osw.flush();
+                    try (OutputStreamWriter osw = new OutputStreamWriter(bos);
+                        PrintWriter printWriter = new PrintWriter(osw);) {
+                        // XXX this null is a bug but this branch of code appears not to be used
+                        OWLXMLWriter writer = new OWLXMLWriter(printWriter, null);
+                        OWLXMLObjectRenderer renderer = new OWLXMLObjectRenderer(writer);
+                        ax.accept(renderer);
+                    }
                     wrapInCDataSection = false;
                     writeAsXML = true;
 
@@ -268,14 +263,14 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
         }
     }
 
-    private void unpauseTimers(List<TelemetryTimer> paused) {
+    private static void unpauseTimers(List<TelemetryTimer> paused) {
         for (TelemetryTimer timer : paused) {
             timer.start();
         }
     }
 
     private List<TelemetryTimer> pauseRunningTimers() {
-        List<TelemetryTimer> paused = new ArrayList<TelemetryTimer>();
+        List<TelemetryTimer> paused = new ArrayList<>();
         for (TelemetryInfo i : telemetryNodeStack) {
             for (TelemetryTimer timer : i.getTimers()) {
                 if (timer != null) {

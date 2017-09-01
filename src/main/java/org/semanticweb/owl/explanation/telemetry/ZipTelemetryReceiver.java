@@ -1,9 +1,21 @@
 package org.semanticweb.owl.explanation.telemetry;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 /**
@@ -16,27 +28,24 @@ public class ZipTelemetryReceiver implements TelemetryReceiver {
 
     private static final String ROOT_NAME = "telemetry/";
 
-    private Map<TelemetryInfo, Properties> info2PropertiesMap = new WeakHashMap<TelemetryInfo, Properties>();
+    private Map<TelemetryInfo, Properties> info2PropertiesMap = new WeakHashMap<>();
 
-    private Map<TelemetryInfo, String> info2EntryMap = new WeakHashMap<TelemetryInfo, String>();
+    private Map<TelemetryInfo, String> info2EntryMap = new WeakHashMap<>();
 
-    private Stack<TelemetryInfo> telemetryInfoStack = new Stack<TelemetryInfo>();
+    private Deque<TelemetryInfo> telemetryInfoStack = new LinkedList<>();
 
-    private Set<String> zipEntryNames = new HashSet<String>();
+    private Set<String> zipEntryNames = new HashSet<>();
 
-    private File zip;
-
-    private ZipOutputStream zipOutputStream;
+    protected ZipOutputStream zipOutputStream;
 
     public ZipTelemetryReceiver(File zipFile) {
         try {
-            this.zip = zipFile;
-            this.zipOutputStream = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(zipFile)));
+            zipOutputStream =
+                new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(zipFile)));
             zipOutputStream.putNextEntry(new ZipEntry(ROOT_NAME));
             zipOutputStream.closeEntry();
             zipOutputStream.setLevel(9);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
         Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -44,8 +53,7 @@ public class ZipTelemetryReceiver implements TelemetryReceiver {
             public void run() {
                 try {
                     zipOutputStream.close();
-                }
-                catch (IOException e) {
+                } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
@@ -56,8 +64,7 @@ public class ZipTelemetryReceiver implements TelemetryReceiver {
         try {
             zipOutputStream.flush();
             zipOutputStream.close();
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -66,36 +73,41 @@ public class ZipTelemetryReceiver implements TelemetryReceiver {
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    @Override
     public void beginTransmission(TelemetryInfo info) {
         createTelemetryInfoEntry(info);
     }
 
+    @Override
     public void recordMeasurement(TelemetryInfo info, String propertyName, String value) {
         writeProperty(info, propertyName, value);
     }
 
-    public void recordException(TelemetryInfo info, Throwable exception) {
-    }
+    @Override
+    public void recordException(TelemetryInfo info, Throwable exception) {}
 
-    public void recordObject(TelemetryInfo info, String namePrefix, String nameSuffix, Object object) {
+    @Override
+    public void recordObject(TelemetryInfo info, String namePrefix, String nameSuffix,
+        Object object) {
         writeObject(info, namePrefix + nameSuffix, object);
     }
 
+    @Override
     public void recordTiming(TelemetryInfo info, String name, TelemetryTimer telemetryTimer) {
         long ellapsedTime = telemetryTimer.getEllapsedTime();
         recordMeasurement(info, name, Long.toString(ellapsedTime));
     }
 
+    @Override
     public void endTransmission(TelemetryInfo info) {
         TelemetryInfo popped = telemetryInfoStack.pop();
         writeTelemetryInfoProperties(info);
         try {
             zipOutputStream.flush();
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
-        if(!popped.equals(info)) {
+        if (!popped.equals(info)) {
             System.err.println("ERROR: TelemetryInfo mismatch: " + info + " " + popped);
         }
 
@@ -110,8 +122,7 @@ public class ZipTelemetryReceiver implements TelemetryReceiver {
         try {
             zipOutputStream.putNextEntry(ze);
             zipOutputStream.closeEntry();
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
         telemetryInfoStack.push(info);
@@ -125,12 +136,11 @@ public class ZipTelemetryReceiver implements TelemetryReceiver {
         if (!telemetryInfoStack.isEmpty()) {
             TelemetryInfo parentInfo = telemetryInfoStack.peek();
             parentEntry = getTelemetryInfoZipEntryName(parentInfo);
-        }
-        else {
+        } else {
             parentEntry = ROOT_NAME;
         }
         int count = 0;
-        while(true) {
+        while (true) {
             StringBuilder sb = new StringBuilder();
             sb.append(parentEntry);
             sb.append(info.getName());
@@ -138,7 +148,7 @@ public class ZipTelemetryReceiver implements TelemetryReceiver {
             sb.append(count);
             sb.append("/");
             String candidate = sb.toString();
-            if(!zipEntryNames.contains(candidate)) {
+            if (!zipEntryNames.contains(candidate)) {
                 zipEntryNames.add(candidate);
                 return candidate;
             }
@@ -158,7 +168,8 @@ public class ZipTelemetryReceiver implements TelemetryReceiver {
     }
 
     public ZipEntry getPropertiesZipEntryName(TelemetryInfo info) {
-        String zipEntryName = getTelemetryInfoArtefactZipEntryName(info, info.getName() + ".properties");
+        String zipEntryName =
+            getTelemetryInfoArtefactZipEntryName(info, info.getName() + ".properties");
         return new ZipEntry(zipEntryName);
     }
 
@@ -166,7 +177,7 @@ public class ZipTelemetryReceiver implements TelemetryReceiver {
     private void writeProperty(TelemetryInfo info, String propertyName, String value) {
         List<TelemetryTimer> paused = pauseRunningTimers();
         Properties properties = info2PropertiesMap.get(info);
-        if(properties != null) {
+        if (properties != null) {
             properties.setProperty(propertyName, value);
         }
         unpauseTimers(paused);
@@ -182,25 +193,24 @@ public class ZipTelemetryReceiver implements TelemetryReceiver {
             bos.flush();
             zipOutputStream.closeEntry();
             zipOutputStream.flush();
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private void unpauseTimers(List<TelemetryTimer> paused) {
-        for(TelemetryTimer timer : paused) {
+    private static void unpauseTimers(List<TelemetryTimer> paused) {
+        for (TelemetryTimer timer : paused) {
             timer.start();
         }
     }
 
     private List<TelemetryTimer> pauseRunningTimers() {
-        List<TelemetryTimer> paused = new ArrayList<TelemetryTimer>();
-        for(TelemetryInfo i : telemetryInfoStack) {
+        List<TelemetryTimer> paused = new ArrayList<>();
+        for (TelemetryInfo i : telemetryInfoStack) {
             for (TelemetryTimer timer : i.getTimers()) {
-                if(timer != null) {
-                    if(timer.isRunning()) {
-                       timer.stop();
+                if (timer != null) {
+                    if (timer.isRunning()) {
+                        timer.stop();
                         paused.add(timer);
                     }
                 }
@@ -215,34 +225,28 @@ public class ZipTelemetryReceiver implements TelemetryReceiver {
         List<TelemetryTimer> paused = pauseRunningTimers();
         String zipEntryName = getTelemetryInfoArtefactZipEntryName(info, name);
 
-            try {
-                zipOutputStream.putNextEntry(new ZipEntry(zipEntryName));
-//                BufferedOutputStream bos = new BufferedOutputStream(zipOutputStream);
-                if(object instanceof TelemetryObject) {
-                    TelemetryObject telemetryObject = (TelemetryObject) object;
-                    telemetryObject.serialise(zipOutputStream);
-                }
-                else {
-                    PrintWriter pw = new PrintWriter(zipOutputStream);
-                    pw.print(object);
-                    pw.flush();
-                }
-//                bos.flush();
-                zipOutputStream.closeEntry();
-                zipOutputStream.flush();
+        try {
+            zipOutputStream.putNextEntry(new ZipEntry(zipEntryName));
+            // BufferedOutputStream bos = new BufferedOutputStream(zipOutputStream);
+            if (object instanceof TelemetryObject) {
+                TelemetryObject telemetryObject = (TelemetryObject) object;
+                telemetryObject.serialise(zipOutputStream);
+            } else {
+                PrintWriter pw = new PrintWriter(zipOutputStream);
+                pw.print(object);
+                pw.flush();
             }
-            catch (FileNotFoundException e) {
-                e.printStackTrace();
-            }
-            catch (IOException e) {
-                e.printStackTrace();
-            }
+            // bos.flush();
+            zipOutputStream.closeEntry();
+            zipOutputStream.flush();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         unpauseTimers(paused);
     }
-
-
-
 
 
 
