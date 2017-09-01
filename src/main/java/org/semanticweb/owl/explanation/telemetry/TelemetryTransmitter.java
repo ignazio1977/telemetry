@@ -48,16 +48,17 @@ public class TelemetryTransmitter implements TelemetryDevice {
     public void setTelemetryReceiver(TelemetryReceiver telemetryReceiver) {
         if (telemetryReceiver != null) {
             this.telemetryReceiver = telemetryReceiver;
-        }
-        else {
+        } else {
             this.telemetryReceiver = nullTelemetryReceiver;
         }
     }
 
+    @Override
     public void beginTransmission(TelemetryInfo transmitter) {
         telemetryReceiver.beginTransmission(transmitter);
     }
 
+    @Override
     public void recordMeasurement(TelemetryInfo info, String propertyName, String value) {
         telemetryReceiver.recordMeasurement(info, propertyName, value);
     }
@@ -66,22 +67,35 @@ public class TelemetryTransmitter implements TelemetryDevice {
         telemetryReceiver.recordMeasurement(info, propertyName, number.toString());
     }
 
+    public void recordMeasurement(TelemetryInfo info, String propertyName, int number) {
+        telemetryReceiver.recordMeasurement(info, propertyName, Integer.toString(number));
+    }
+
+    public void recordMeasurement(TelemetryInfo info, String propertyName, double number) {
+        telemetryReceiver.recordMeasurement(info, propertyName, Double.toString(number));
+    }
+
     public void recordMeasurement(TelemetryInfo info, String propertyName, boolean b) {
         telemetryReceiver.recordMeasurement(info, propertyName, Boolean.toString(b));
     }
 
+    @Override
     public void recordException(TelemetryInfo info, Throwable exception) {
         telemetryReceiver.recordException(info, exception);
     }
 
-    public void recordObject(TelemetryInfo info, String namePrefix, String nameSuffix, Object object) {
+    @Override
+    public void recordObject(TelemetryInfo info, String namePrefix, String nameSuffix,
+        Object object) {
         telemetryReceiver.recordObject(info, namePrefix, nameSuffix, object);
     }
 
+    @Override
     public void recordTiming(TelemetryInfo info, String name, TelemetryTimer telemetryTimer) {
         telemetryReceiver.recordTiming(info, name, telemetryTimer);
     }
 
+    @Override
     public void endTransmission(TelemetryInfo transmitter) {
         telemetryReceiver.endTransmission(transmitter);
     }

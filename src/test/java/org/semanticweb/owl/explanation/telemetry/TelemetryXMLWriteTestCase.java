@@ -9,11 +9,13 @@ import java.io.StringWriter;
 import org.junit.Before;
 import org.junit.Test;
 import org.semanticweb.owlapi.model.IRI;
+import org.semanticweb.owlapi.model.OntologyConfigurator;
 import org.semanticweb.owlapi.rdf.rdfxml.renderer.XMLWriterNamespaceManager;
 
 
 /**
- * @author Matthew Horridge, Stanford University, Bio-Medical Informatics Research Group, Date: 04/06/2014
+ * @author Matthew Horridge, Stanford University, Bio-Medical Informatics Research Group, Date:
+ *         04/06/2014
  */
 public class TelemetryXMLWriteTestCase {
 
@@ -25,11 +27,12 @@ public class TelemetryXMLWriteTestCase {
     public void setUp() throws Exception {
         baseWriter = new StringWriter();
         nsm = new XMLWriterNamespaceManager("http://base.com/stuff/");
-        writer = new TelemetryXMLWriter(baseWriter, nsm, "http://base.com/stuff");
+        writer = new TelemetryXMLWriter(baseWriter, nsm, "http://base.com/stuff",
+            new OntologyConfigurator());
     }
 
     @Test
-    public void shouldWriteElement() throws IOException{
+    public void shouldWriteElement() throws IOException {
         writer.writeStartElement(IRI.create("experiment"));
         writer.writeEndElement();
         assertThat(baseWriter.toString().trim(), is("<experiment/>"));

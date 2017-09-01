@@ -17,6 +17,7 @@ import java.util.Stack;
 
 import org.semanticweb.owlapi.model.IRI;
 import org.semanticweb.owlapi.model.OWLAxiom;
+import org.semanticweb.owlapi.model.OntologyConfigurator;
 import org.semanticweb.owlapi.owlxml.renderer.OWLXMLObjectRenderer;
 import org.semanticweb.owlapi.owlxml.renderer.OWLXMLWriter;
 import org.semanticweb.owlapi.rdf.rdfxml.renderer.XMLWriterNamespaceManager;
@@ -42,12 +43,16 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
     private Writer baseWriter;
 
     public XMLTelemetryReceiver() {
-        this(getNextFile("telemetry-", ".xml"));
+        this(new OntologyConfigurator());
+    }
+
+    public XMLTelemetryReceiver(OntologyConfigurator configurator) {
+        this(getNextFile("telemetry-", ".xml"), configurator);
     }
 
     private static File getNextFile(String prefix, String suffix) {
         File outputFile;
-        for (int i = 0; ; i++) {
+        for (int i = 0;; i++) {
             outputFile = new File(prefix + i + suffix);
             if (!outputFile.exists()) {
                 break;
@@ -57,7 +62,11 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
     }
 
     public XMLTelemetryReceiver(File outputFile) {
-        this(getWriterForFile(outputFile));
+        this(outputFile, new OntologyConfigurator());
+    }
+
+    public XMLTelemetryReceiver(File outputFile, OntologyConfigurator configurator) {
+        this(getWriterForFile(outputFile), configurator);
     }
 
     private static BufferedWriter getWriterForFile(File outputFile) {
@@ -69,9 +78,13 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
     }
 
     public XMLTelemetryReceiver(Writer writer) {
+        this(writer, new OntologyConfigurator());
+    }
+
+    public XMLTelemetryReceiver(Writer writer, OntologyConfigurator configurator) {
         XMLWriterNamespaceManager nsm = new XMLWriterNamespaceManager("");
         baseWriter = writer;
-        xmlWriter = new TelemetryXMLWriter(baseWriter, nsm, "");
+        xmlWriter = new TelemetryXMLWriter(baseWriter, nsm, "", configurator);
         xmlWriter.startDocument(IRI.create("experiments"));
         depth++;
         Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -168,7 +181,8 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
     }
 
     @Override
-    public void recordObject(TelemetryInfo info, String namePrefix, String nameSuffix, Object object) {
+    public void recordObject(TelemetryInfo info, String namePrefix, String nameSuffix,
+        Object object) {
         if (!isIgnoredTransmission()) {
             List<TelemetryTimer> timers = pauseRunningTimers();
             serialiseObject(info, namePrefix, object);
@@ -189,13 +203,11 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
                     telemetryObject.serialise(bos);
                     if (!telemetryObject.isSerialisedAsXML()) {
                         wrapInCDataSection = false;
-                    }
-                    else {
+                    } else {
                         wrapInCDataSection = false;
                         writeAsXML = true;
                     }
-                }
-                else if (object instanceof OWLAxiom) {
+                } else if (object instanceof OWLAxiom) {
                     OWLAxiom ax = (OWLAxiom) object;
                     OutputStreamWriter osw = new OutputStreamWriter(bos);
                     PrintWriter printWriter = new PrintWriter(osw);
@@ -206,8 +218,7 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
                     wrapInCDataSection = false;
                     writeAsXML = true;
 
-                }
-                else {
+                } else {
                     OutputStreamWriter writer = new OutputStreamWriter(bos);
                     String string = object.toString();
                     writer.write(string);
@@ -215,11 +226,9 @@ public class XMLTelemetryReceiver implements TelemetryReceiver {
                 }
                 if (wrapInCDataSection) {
                     xmlWriter.writeCData(bos.toString());
-                }
-                else if (writeAsXML) {
+                } else if (writeAsXML) {
                     xmlWriter.writeXMLContent(bos.toString());
-                }
-                else {
+                } else {
                     xmlWriter.writeTextContent(bos.toString());
                 }
                 xmlWriter.writeEndElement();
